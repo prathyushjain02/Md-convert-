@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="masthead">
+  <div class="brand">
+    <span class="brand-mark">MD</span>
+    <span class="brand-name">MarkItDown</span>
+  </div>
+  <a
+    class="repo-link"
+    href="https://github.com/microsoft/markitdown"
+    target="_blank"
+    rel="noopener noreferrer"
+    >Powered by microsoft/markitdown ↗</a
+  >
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Turn any document into Markdown</h1>
+    <p class="lede">
+      Drop in a PDF, Word doc, slide deck, spreadsheet, web page, e-book or image.
+      You get a clean <code>.md</code> file back — ready for your notes, your repo,
+      or an LLM prompt.
+    </p>
+  </section>
+
+  <form id="upload-form" class="uploader" autocomplete="off">
+    <label
+      id="dropzone"
+      class="dropzone"
+      for="file-input"
+      tabindex="0"
+      aria-describedby="dropzone-hint"
+    >
+      <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v2.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V15"
+        />
+      </svg>
+      <span class="dropzone-title">Drag files here, or click to browse</span>
+      <span class="dropzone-hint" id="dropzone-hint">
+        Up to {{ limits.max_files }} file{{ '' if limits.max_files == 1 else 's' }},
+        {{ limits.max_upload_mb }} MB per upload
+      </span>
+      <input
+        id="file-input"
+        name="files"
+        type="file"
+        multiple
+        {% if not limits.allow_any_extension %}accept="{{ limits.allowed_extensions | join(',') }}"{% endif %}
+        hidden
+      />
+    </label>
+
+    <ul id="queue" class="queue" aria-live="polite"></ul>
+
+    <div class="actions">
+      <button id="convert-btn" class="button button-primary" type="submit" disabled>
+        Convert to Markdown
+      </button>
+      <button id="clear-btn" class="button button-ghost" type="button" hidden>
+        Clear
+      </button>
+    </div>
+
+    <p id="form-error" class="form-error" role="alert" hidden></p>
+  </form>
+
+  <section id="results" class="results" aria-live="polite"></section>
+
+  <details class="formats">
+    <summary>Supported file types</summary>
+    <ul class="format-list">
+      {% for extension in limits.allowed_extensions %}
+      <li><code>{{ extension }}</code></li>
+      {% endfor %}
+    </ul>
+    {% if limits.allow_any_extension %}
+    <p class="format-note">
+      This instance also accepts other extensions and lets MarkItDown sniff the
+      format from the file's contents.
+    </p>
+    {% endif %}
+    <p class="format-note">
+      Images and audio yield metadata, plus OCR or transcription when those
+      optional tools are available on the server. Zip archives are unpacked and
+      every file inside is converted.
+    </p>
+  </details>
+
+  <details class="formats">
+    <summary>Use it from the command line</summary>
+    <pre class="snippet"><code>curl -X POST -F "files=@report.pdf" \
+  https://YOUR-APP.onrender.com/api/convert/file -o report.md</code></pre>
+    <p class="format-note">
+      Post several files and you get a <code>markdown.zip</code> back. For JSON
+      instead of a file, post to <code>/api/convert</code>.
+    </p>
+  </details>
+</main>
+
+<footer class="footer">
+  <p>
+    Files are converted on the server in a temporary directory that is deleted
+    as soon as the response is sent. Nothing is stored, logged or shared.
+  </p>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.APP_LIMITS = {{ limits | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

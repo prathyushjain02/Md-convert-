@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}MarkItDown — convert any file to Markdown{% endblock %}</title>
+    <meta
+      name="description"
+      content="Upload a PDF, Word, PowerPoint, Excel, HTML or image file and get clean Markdown back, powered by Microsoft's MarkItDown."
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>"
+    />
+  </head>
+  <body>
+    <div class="page">{% block content %}{% endblock %}</div>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

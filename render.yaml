@@ -1,0 +1,30 @@
+# Render Blueprint. In the Render dashboard choose
+# "New +" -> "Blueprint", point it at this repository, and everything below is
+# provisioned automatically.
+services:
+  - type: web
+    name: markitdown-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # Largest request body accepted, in megabytes.
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      # Files allowed per conversion request.
+      - key: MAX_FILES
+        value: "10"
+      # gunicorn sizing. The free plan has 512 MB of RAM, so keep workers low.
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: WEB_THREADS
+        value: "4"
+      # Seconds a single conversion may take before gunicorn kills the worker.
+      - key: WEB_TIMEOUT
+        value: "180"
+      - key: LOG_LEVEL
+        value: "INFO"
