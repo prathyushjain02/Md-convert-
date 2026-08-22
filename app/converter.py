@@ -26,9 +26,19 @@ from markitdown import (
     UnsupportedFormatException,
 )
 
+from .pdf import LayoutAwarePdfConverter
+
 logger = logging.getLogger(__name__)
 
 _local = threading.local()
+
+
+def use_layout_aware_pdf() -> bool:
+    """Whether to prefer our PDF converter over the one MarkItDown ships.
+
+    Set PDF_ENGINE=markitdown to fall back to the upstream behaviour.
+    """
+    return os.environ.get("PDF_ENGINE", "layout").strip().lower() != "markitdown"
 
 # Characters that are unsafe in a download filename on any common platform.
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
@@ -73,11 +83,18 @@ def get_markitdown(*, enable_plugins: bool = False) -> MarkItDown:
     content sniffing), and the library makes no thread-safety promises, so we
     keep exactly one instance per worker thread.
     """
+    layout_pdf = use_layout_aware_pdf()
+    cache_key = (enable_plugins, layout_pdf)
     instance = getattr(_local, "markitdown", None)
-    if instance is None or getattr(_local, "plugins", None) != enable_plugins:
+    if instance is None or getattr(_local, "cache_key", None) != cache_key:
         instance = MarkItDown(enable_plugins=enable_plugins)
+        if layout_pdf:
+            # Ahead of the built-in PDF converter. Priority is lowest-first,
+            # and the built-in specific-format converters sit at 0.0. If ours
+            # raises, MarkItDown moves on to the built-in one by itself.
+            instance.register_converter(LayoutAwarePdfConverter(), priority=-1.0)
         _local.markitdown = instance
-        _local.plugins = enable_plugins
+        _local.cache_key = cache_key
     return instance
 
 

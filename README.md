@@ -80,6 +80,7 @@ All settings are optional environment variables — see
 | `MAX_FILES` | `2` | Files per conversion request |
 | `ALLOWED_EXTENSIONS` | built-in list | Comma-separated allowlist override |
 | `ALLOW_ANY_EXTENSION` | `false` | Accept anything and sniff the format |
+| `PDF_ENGINE` | `layout` | `layout` or `markitdown` — see [PDF quality](#pdf-quality) |
 | `MARKITDOWN_ENABLE_PLUGINS` | `false` | Load installed MarkItDown plugins |
 | `MAX_BUNDLE_MB` | `25` | Cap on the "Download all" zip |
 | `LOG_LEVEL` | `INFO` | Python logging level |
@@ -137,6 +138,35 @@ pytest -q
 
 The suite converts real HTML, CSV and DOCX documents through MarkItDown and
 covers filename sanitisation, upload limits and every API route.
+
+---
+
+## PDF quality
+
+PDFs are converted by `app/pdf.py` rather than by MarkItDown's built-in PDF
+converter, which is tuned for invoices and forms. On a document with several
+unrelated tables per page, or with more than one text column — a fund
+factsheet, say — the built-in converter produces three specific defects:
+
+| Defect | Cause | Handling here |
+| --- | --- | --- |
+| Words fuse: `Newwayofdoingbusiness` | Words are split on a fixed 3pt gap, but 7pt display type set without space glyphs has sub-point gaps | Gaps scale with character size, so small and large type both split correctly |
+| Tables grow empty columns | One column grid is built per *page* and every table is forced into it, so a 3-column table above a 4-column one gains a phantom column | Each table gets its own grid, and columns no row fills are dropped |
+| Multi-column pages interleave | Words are grouped into rows across the full page width, so the left and right columns are read as single lines | Gutters are detected from the text's real extents and each column is read in turn |
+
+The same page analysis also keeps label/value blocks (`Fund Manager  George
+Thomas`) on one line — the built-in converter files every label away from its
+value — and restores the blank line between paragraphs.
+
+Set `PDF_ENGINE=markitdown` to switch back to the built-in converter. Nothing
+else changes: every other format is handled by MarkItDown exactly as before,
+and if the layout-aware converter ever raises, MarkItDown falls through to the
+built-in one on its own.
+
+`tests/test_pdf.py` builds a PDF for each defect with reportlab and asserts the
+output is correct. Every one of those tests fails under `PDF_ENGINE=markitdown`,
+so they are real regression tests rather than descriptions of current
+behaviour.
 
 ---
 
@@ -206,10 +236,13 @@ app/
   __init__.py       application factory
   config.py         environment-driven settings
   converter.py      MarkItDown wrapper, filename sanitisation
+  pdf.py            layout-aware PDF -> Markdown converter
   routes.py         page + JSON/file API endpoints
   templates/        Jinja templates
   static/           stylesheet and vanilla JS (no build step, no CDN)
-tests/test_app.py   end-to-end tests
+tests/
+  test_app.py       end-to-end tests for the routes and limits
+  test_pdf.py       PDF layout regression tests
 wsgi.py             gunicorn entrypoint
 Dockerfile          image used by Render
 render.yaml         Render Blueprint
@@ -218,7 +251,9 @@ render.yaml         Render Blueprint
 ## Notes and limits
 
 - Scanned PDFs with no text layer produce empty Markdown; the UI says so
-  explicitly rather than handing you a blank file.
+  explicitly rather than handing you a blank file. No OCR is performed.
+- PDF layout analysis is geometric, not semantic. A table drawn with no ruling
+  and no consistent column alignment can still come out as plain lines.
 - Image OCR and LLM captioning are MarkItDown features that need an external
   model. They are not wired up here; images yield metadata only.
 - Uploads are never written to a persistent location, but they do pass through
