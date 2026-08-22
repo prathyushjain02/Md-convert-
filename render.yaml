@@ -13,19 +13,22 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
-      # Largest request body accepted, in megabytes.
+      # Largest request body accepted, in megabytes, counting every file in
+      # it. Raise this only alongside more RAM: a large PDF peaks at several
+      # times its own size while pdfminer builds a layout tree per page.
       - key: MAX_UPLOAD_MB
-        value: "25"
+        value: "50"
       # Files allowed per conversion request.
       - key: MAX_FILES
-        value: "10"
-      # gunicorn sizing. The free plan has 512 MB of RAM, so keep workers low.
-      - key: WEB_CONCURRENCY
         value: "2"
+      # gunicorn sizing. The free plan has 512 MB of RAM, and one big PDF can
+      # claim most of it, so serve few conversions at once rather than many.
+      - key: WEB_CONCURRENCY
+        value: "1"
       - key: WEB_THREADS
-        value: "4"
+        value: "2"
       # Seconds a single conversion may take before gunicorn kills the worker.
       - key: WEB_TIMEOUT
-        value: "180"
+        value: "300"
       - key: LOG_LEVEL
         value: "INFO"

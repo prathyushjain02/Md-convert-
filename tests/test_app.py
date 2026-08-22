@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 import io
 import json
 import zipfile
 
 import pytest
 
+from app import config as config_module
 from app import create_app
 from app.converter import markdown_filename_for, safe_stem
 
@@ -38,8 +40,56 @@ def test_healthz(client):
 
 def test_limits_endpoint(client):
     payload = client.get("/api/limits").get_json()
-    assert payload["max_files"] >= 1
+    assert payload["max_files"] == 2
+    assert payload["max_upload_mb"] == 50
     assert ".pdf" in payload["allowed_extensions"]
+
+
+def test_default_limits_are_two_files_and_fifty_megabytes():
+    """The UI and the docs both quote these, so pin them."""
+    app = create_app()
+    assert app.config["MAX_FILES"] == 2
+    assert app.config["MAX_UPLOAD_MB"] == 50
+    assert app.config["MAX_CONTENT_LENGTH"] == 50 * 1024 * 1024
+
+
+def test_limits_are_overridable_from_the_environment(monkeypatch):
+    monkeypatch.setenv("MAX_FILES", "5")
+    monkeypatch.setenv("MAX_UPLOAD_MB", "200")
+    importlib.reload(config_module)
+    app = create_app(config_module.Config)
+    try:
+        assert app.config["MAX_FILES"] == 5
+        assert app.config["MAX_CONTENT_LENGTH"] == 200 * 1024 * 1024
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config_module)
+
+
+def test_third_file_is_rejected_at_the_default_limit(client):
+    data = {
+        "files": [
+            (io.BytesIO(b"<h1>One</h1>"), "one.html"),
+            (io.BytesIO(b"<h1>Two</h1>"), "two.html"),
+            (io.BytesIO(b"<h1>Three</h1>"), "three.html"),
+        ]
+    }
+    response = client.post("/api/convert", data=data, content_type="multipart/form-data")
+    assert response.status_code == 400
+    assert "limit is 2" in response.get_json()["error"]
+
+
+def test_two_files_still_convert_at_the_default_limit(client):
+    data = {
+        "files": [
+            (io.BytesIO(b"<h1>One</h1>"), "one.html"),
+            (io.BytesIO(b"<h1>Two</h1>"), "two.html"),
+        ]
+    }
+    payload = client.post(
+        "/api/convert", data=data, content_type="multipart/form-data"
+    ).get_json()
+    assert payload["summary"] == {"total": 2, "succeeded": 2, "failed": 0}
 
 
 def test_convert_html_to_markdown(client):

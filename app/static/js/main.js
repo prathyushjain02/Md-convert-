@@ -64,23 +64,46 @@
 
   /* ---------- queue ---------- */
 
+  function queuedBytes() {
+    return queue.reduce(function (total, file) {
+      return total + file.size;
+    }, 0);
+  }
+
   function addFiles(fileList) {
     var incoming = Array.prototype.slice.call(fileList || []);
     if (!incoming.length) return;
 
     var problems = [];
     var maxBytes = limits.max_upload_mb * 1024 * 1024;
+    var total = queuedBytes();
 
     incoming.forEach(function (file) {
       if (queue.some(function (queued) { return keyFor(queued) === keyFor(file); })) {
         return;
       }
       if (queue.length >= limits.max_files) {
-        problems.push("Only " + limits.max_files + " files can be converted at a time.");
+        problems.push(
+          "Only " +
+            limits.max_files +
+            " file" +
+            (limits.max_files === 1 ? "" : "s") +
+            " can be converted at a time."
+        );
         return;
       }
-      if (file.size > maxBytes) {
-        problems.push(file.name + " is larger than " + limits.max_upload_mb + " MB.");
+      // The server limit covers the whole request, so check the running total
+      // rather than each file on its own.
+      if (total + file.size > maxBytes) {
+        problems.push(
+          queue.length
+            ? "Adding " +
+              file.name +
+              " would put this upload over the " +
+              limits.max_upload_mb +
+              " MB limit."
+            : file.name + " is larger than the " + limits.max_upload_mb + " MB limit."
+        );
         return;
       }
       if (
@@ -91,6 +114,7 @@
         problems.push(file.name + " is not a supported file type.");
         return;
       }
+      total += file.size;
       queue.push(file);
     });
 

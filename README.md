@@ -12,7 +12,7 @@ repository is the upload UI, the HTTP API and the deployment config around it.
 
 ## Features
 
-- Drag-and-drop or click-to-browse uploads, several files at a time
+- Drag-and-drop or click-to-browse uploads, up to two files at a time
 - Live Markdown preview, one-click copy, per-file `.md` download
 - `Download all (.zip)` when you convert a batch
 - JSON and file-download APIs, so it works from `curl` and scripts too
@@ -76,17 +76,33 @@ All settings are optional environment variables — see
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `MAX_UPLOAD_MB` | `25` | Largest accepted request body |
-| `MAX_FILES` | `10` | Files per conversion request |
+| `MAX_UPLOAD_MB` | `50` | Largest accepted request body, counting every file in it |
+| `MAX_FILES` | `2` | Files per conversion request |
 | `ALLOWED_EXTENSIONS` | built-in list | Comma-separated allowlist override |
 | `ALLOW_ANY_EXTENSION` | `false` | Accept anything and sniff the format |
 | `MARKITDOWN_ENABLE_PLUGINS` | `false` | Load installed MarkItDown plugins |
 | `MAX_BUNDLE_MB` | `25` | Cap on the "Download all" zip |
 | `LOG_LEVEL` | `INFO` | Python logging level |
-| `WEB_CONCURRENCY` / `WEB_THREADS` / `WEB_TIMEOUT` | `2` / `4` / `180` | gunicorn sizing |
+| `WEB_CONCURRENCY` / `WEB_THREADS` / `WEB_TIMEOUT` | `1` / `2` / `300` | gunicorn sizing |
 
-Render's free plan has 512 MB of RAM. Large PDFs are memory-hungry, so keep
-`WEB_CONCURRENCY` low and raise `WEB_TIMEOUT` rather than adding workers.
+### Sizing the upload limit
+
+`MAX_UPLOAD_MB` is a budget for the whole request, not per file — two 30 MB PDFs
+exceed a 50 MB limit. The defaults (2 files, 50 MB) are chosen for Render's free
+plan, which gives one instance 512 MB of RAM.
+
+Conversion costs a multiple of the file size rather than the size itself:
+pdfminer builds a layout tree per page, and the spreadsheet path loads sheets
+through pandas. A 50 MB PDF can peak in the hundreds of megabytes. That is why
+`WEB_CONCURRENCY` and `WEB_THREADS` are low — one large conversion can claim
+most of a free instance, and serving several at once is what gets the process
+OOM-killed and restarted, taking the requests that were succeeding with it.
+
+To go higher than 50 MB, raise `MAX_UPLOAD_MB` and give the service more
+memory; on a 512 MB instance a 100 MB PDF is likely to be killed mid-conversion
+rather than merely slow. Watch `WEB_TIMEOUT` too: a big scanned document can
+outrun it, and gunicorn then kills the worker after the user has already waited
+the full timeout.
 
 ---
 

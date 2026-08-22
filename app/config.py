@@ -83,12 +83,15 @@ def _env_extensions(name: str) -> frozenset[str] | None:
 class Config:
     """Flask configuration object."""
 
-    # Largest accepted request body. Flask aborts with 413 beyond this.
-    MAX_UPLOAD_MB = _env_int("MAX_UPLOAD_MB", 25)
+    # Largest accepted request body, counting every file in it. Flask aborts
+    # with 413 beyond this. Sized for a 512 MB instance: converters peak at
+    # several times the file size, so this is not free headroom.
+    MAX_UPLOAD_MB = _env_int("MAX_UPLOAD_MB", 50)
     MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
 
-    # How many files a single request may carry.
-    MAX_FILES = max(1, _env_int("MAX_FILES", 10))
+    # How many files a single request may carry. Kept small so that the
+    # megabyte budget above can be spent on one or two large documents.
+    MAX_FILES = max(1, _env_int("MAX_FILES", 2))
 
     # Which uploads we accept. Override with ALLOWED_EXTENSIONS=".pdf,.docx".
     ALLOWED_EXTENSIONS = _env_extensions("ALLOWED_EXTENSIONS") or DEFAULT_ALLOWED_EXTENSIONS
