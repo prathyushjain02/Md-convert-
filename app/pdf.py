@@ -326,25 +326,33 @@ def _render_block(lines: list[Line], page_width: float) -> list[str]:
 
 def _convert_page(page: Any) -> str:
     """Convert one page, keeping ruled tables and text in reading order."""
-    ruled = []
-    try:
-        found = page.find_tables(
-            {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
-        )
-        for table in found:
-            rendered = _render_table(table.extract())
-            if rendered:
-                ruled.append((table.bbox, rendered))
-    except Exception:  # noqa: BLE001 - a bad table must not lose the page
-        logger.debug("Ruled table detection failed on a page", exc_info=True)
-    ruled.sort(key=lambda item: item[0][1])
-
+    # Extracting words parses the page's content stream, which is the bulk of
+    # the cost. Do it first so the edge check below is nearly free.
     words = page.extract_words(
         x_tolerance_ratio=X_TOLERANCE_RATIO,
         y_tolerance=3,
         keep_blank_chars=False,
         use_text_flow=False,
     )
+
+    ruled = []
+    try:
+        # No ruling on the page means no ruled tables to find.
+        if page.edges:
+            found = page.find_tables(
+                {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
+            )
+            for table in found:
+                # Cells need the same size-relative word gap as the rest of the
+                # page; pdfplumber's default would refuse it back inside them.
+                rendered = _render_table(
+                    table.extract(x_tolerance_ratio=X_TOLERANCE_RATIO)
+                )
+                if rendered:
+                    ruled.append((table.bbox, rendered))
+    except Exception:  # noqa: BLE001 - a bad table must not lose the page
+        logger.debug("Ruled table detection failed on a page", exc_info=True)
+    ruled.sort(key=lambda item: item[0][1])
 
     # Walk the page top to bottom: text above the first ruled table, that
     # table, text down to the next one, and so on.

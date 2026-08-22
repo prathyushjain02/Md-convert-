@@ -21,6 +21,7 @@
   var queue = [];
   var lastResults = [];
   var busy = false;
+  var elapsedTimer = null;
 
   /* ---------- helpers ---------- */
 
@@ -166,14 +167,30 @@
     busy = state;
     convertBtn.disabled = state || queue.length === 0;
     convertBtn.textContent = "";
-    if (state) {
-      var spinner = document.createElement("span");
-      spinner.className = "spinner";
-      convertBtn.appendChild(spinner);
-      convertBtn.appendChild(document.createTextNode("Converting…"));
-    } else {
-      convertBtn.textContent = "Convert to Markdown";
+
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
     }
+
+    if (!state) {
+      convertBtn.textContent = "Convert to Markdown";
+      return;
+    }
+
+    var spinner = document.createElement("span");
+    spinner.className = "spinner";
+    convertBtn.appendChild(spinner);
+    var label = document.createTextNode("Converting…");
+    convertBtn.appendChild(label);
+
+    // A large PDF can take a while. Counting up shows it is still working
+    // rather than leaving an indeterminate spinner to look like a hang.
+    var started = Date.now();
+    elapsedTimer = setInterval(function () {
+      var seconds = Math.round((Date.now() - started) / 1000);
+      label.nodeValue = seconds < 3 ? "Converting…" : "Converting… " + seconds + "s";
+    }, 1000);
   }
 
   /* ---------- results ---------- */

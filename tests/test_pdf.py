@@ -205,6 +205,35 @@ def test_table_rows_are_intact(two_table_pdf):
     assert re.search(r"\|\s*Over 12 months\s*\|\s*12\.5%\s*\|", markdown)
 
 
+def test_ruled_table_cells_keep_their_word_breaks():
+    """The size-relative word gap has to reach inside table cells too.
+
+    pdfplumber extracts cell text with its own defaults, so a table whose
+    cells were set without space glyphs fused exactly like the headings did.
+    """
+
+    def draw(canvas):
+        rows = [
+            ["Housing Development Finance", "Financials"],
+            ["Tata Consultancy Services", "Technology"],
+        ]
+        for r, row in enumerate(rows):
+            x = 40
+            for value, width in zip(row, [200, 120]):
+                canvas.rect(x, 700 - r * 20, width, 20)
+                cursor = x + 3
+                for word in value.split():
+                    canvas.setFont("Helvetica", 7)
+                    canvas.drawString(cursor, 705 - r * 20, word)
+                    cursor += canvas.stringWidth(word, "Helvetica", 7) + 1.4
+                x += width
+
+    markdown = to_markdown(build(draw))
+    assert "Housing Development Finance" in markdown
+    assert "Tata Consultancy Services" in markdown
+    assert "HousingDevelopmentFinance" not in markdown
+
+
 def test_a_long_cell_does_not_break_the_table():
     def draw(canvas):
         rows = [

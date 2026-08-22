@@ -62,7 +62,7 @@ Create a new **Web Service** in Render, point it at this repository, and set:
 - **Runtime**: `Python 3`
 - **Build command**: `pip install -r requirements.txt`
 - **Start command**:
-  `gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 180`
+  `gunicorn wsgi:app --preload --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 300`
 - **Health check path**: `/healthz`
 
 This route skips the `ffmpeg` and `exiftool` system packages, so audio
@@ -120,7 +120,7 @@ python wsgi.py            # http://127.0.0.1:5000
 For a production-like run:
 
 ```bash
-gunicorn wsgi:app --bind 0.0.0.0:5000 --threads 4 --timeout 180
+gunicorn wsgi:app --preload --bind 0.0.0.0:5000 --threads 2 --timeout 300
 ```
 
 Or with Docker:
@@ -138,6 +138,41 @@ pytest -q
 
 The suite converts real HTML, CSV and DOCX documents through MarkItDown and
 covers filename sanitisation, upload limits and every API route.
+
+---
+
+## Performance
+
+Measured on a 4-core container, converting a 20-page factsheet with ruled
+tables, borderless tables and two-column prose on every page:
+
+| | Cost |
+| --- | --- |
+| Conversion, layout engine | ~68 ms/page |
+| Conversion, `PDF_ENGINE=markitdown` | ~51 ms/page |
+| Import MarkItDown (cold disk, once per container) | up to ~13 s |
+| Build the MarkItDown instance (once per worker) | ~0.3 s |
+
+Nearly all of the per-page cost is parsing the PDF's content stream, which
+every engine pays; layout analysis adds about a third on table-heavy pages and
+is essentially free on pages without ruled tables.
+
+Two things are done about the startup cost. `gunicorn --preload` imports the
+library once in the master process, so forked workers inherit it instead of
+each paying for it, and the app warms MarkItDown in a background thread at
+boot so the first upload does not have to. Neither helps if the instance is not
+running at all — see below.
+
+**If conversion feels slow in production, the instance is usually the reason.**
+Render's free plan runs a web service on a 0.1 CPU share, so the per-page costs
+above multiply by roughly ten, and it spins the instance down after 15 minutes
+of inactivity — the next request then waits for a cold container start before
+any work begins. A paid instance removes the spin-down and gives several times
+the CPU, which is a far larger effect than anything in this codebase.
+
+For a large document on a multi-core paid instance, converting page ranges in
+separate processes would parallelise well. It is not implemented: it would not
+help on a fractional-CPU instance, which is where the problem is usually felt.
 
 ---
 

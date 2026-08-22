@@ -29,4 +29,4 @@ EXPOSE 10000
 
 # Conversion is CPU- and IO-bound and can take a while on big PDFs, so give
 # gunicorn a generous timeout and a couple of threads per worker.
-CMD ["sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY:-1} --threads ${WEB_THREADS:-2} --timeout ${WEB_TIMEOUT:-300} --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "gunicorn wsgi:app --preload --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY:-1} --threads ${WEB_THREADS:-2} --timeout ${WEB_TIMEOUT:-300} --access-logfile - --error-logfile -"]
