@@ -51,9 +51,9 @@ The repository already contains [`render.yaml`](render.yaml) and a
 The Docker image installs `ffmpeg` and `exiftool`, so image metadata and audio
 transcription work in addition to the document formats.
 
-If you deploy from a branch other than `main`, change `branch:` in
-`render.yaml` to match — or drop the key and let Render use the repository's
-default branch.
+`render.yaml` does not pin a branch, so Render deploys whichever branch is the
+repository default. Add `branch: main` (or whichever branch you want) under the
+service to pin it.
 
 ### Option B — Native Python runtime
 

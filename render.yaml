@@ -8,7 +8,8 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     region: oregon
-    branch: main
+    # No `branch:` key, so Render deploys the repository's default branch.
+    # Add one (e.g. `branch: main`) to pin the service to a specific branch.
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
